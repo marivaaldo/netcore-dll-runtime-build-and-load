@@ -21,9 +21,6 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
 
             Console.WriteLine("Start build...");
 
-            //var build = GetCode();
-            var build = GetSyntax();
-
             if (!Helpers.Build(references, GetCode(), assemblyName, out List<Diagnostic> errors, GetAssemblyProperties(assemblyName).ToString()))
             //if (!Helpers.Build(references, GetSyntax(), assemblyName, out List<Diagnostic> errors, GetAssemblyProperties(assemblyName)))
             {
