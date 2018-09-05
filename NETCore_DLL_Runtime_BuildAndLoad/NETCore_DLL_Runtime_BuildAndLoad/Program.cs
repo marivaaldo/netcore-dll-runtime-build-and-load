@@ -1,11 +1,9 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Loader;
 using System;
 
 namespace NETCore_DLL_Runtime_BuildAndLoad
@@ -21,27 +19,12 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
                 MetadataReference.CreateFromFile(typeof(object).GetTypeInfo().Assembly.Location)
             };
 
-            var code = @"
-            using System;
-
-            namespace RuntimeAssemblyTest
-            {
-                internal struct TestStruct
-                {
-                    public int Property1 { get; set; }
-                    public int Property2 { get; set; }
-                }
-
-                public class TestClass
-                {
-                    public bool Property1 { get; set; }
-                    public bool Property2 { get; set; }
-                }
-            }";
-
             Console.WriteLine("Start build...");
 
-            if (!Build(references, code, assemblyName, out List<Diagnostic> errors))
+            //var build = GetCode();
+            var build = GetSyntax();
+
+            if (!Helpers.Build(references, build, assemblyName, out List<Diagnostic> errors))
             {
                 Console.WriteLine("Build errors:");
 
@@ -54,53 +37,70 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
 
                 Console.WriteLine("Loading assembly...");
 
-                Load(assemblyName);
+                var assembly = Helpers.Load(assemblyName);
+
+                Type[] types = assembly.GetTypes();
+
+                foreach (var type in types)
+                {
+                    Console.WriteLine($"Type found: {type.FullName}");
+
+                    foreach (var property in type.GetProperties())
+                    {
+                        Console.WriteLine($"\tProperty found: {property}");
+                    }
+                }
             }
 
             Console.ReadLine();
         }
 
-        private static bool Build(List<MetadataReference> references, string code, string assemblyName, out List<Diagnostic> errors)
+        private static string GetCode()
         {
-            var syntaxTree = SyntaxFactory.ParseSyntaxTree(code);
+            return @"
+            using System;
 
-            var compilation = CSharpCompilation.Create(
-                assemblyName: assemblyName,
-                syntaxTrees: new[] { syntaxTree },
-                references: references,
-                options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-            if (File.Exists($"{assemblyName}.dll"))
-                File.Delete($"{assemblyName}.dll");
-
-            using (var file = new FileStream($"{assemblyName}.dll", FileMode.CreateNew))
+            namespace RuntimeAssemblyTest
             {
-                EmitResult result = compilation.Emit(file);
-
-                if (!result.Success)
+                public class TestClass
                 {
-                    errors = result.Diagnostics.Where(diagnostic =>
-                        diagnostic.IsWarningAsError ||
-                        diagnostic.Severity == DiagnosticSeverity.Error)
-                        .ToList();
+                    public bool Property1 { get; set; }
                 }
-                else
-                {
-                    errors = null;
-                }
-            }
 
-            return errors == null;
+                internal struct TestStruct
+                {
+                    public int Property1 { get; set; }
+                }
+            }";
         }
 
-        private static void Load(string assemblyName)
+        private static SyntaxNode GetSyntax()
         {
-            var assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(Path.GetFullPath($"{assemblyName}.dll"));
+            var @namespace = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName("RuntimeAssemblyTest")).NormalizeWhitespace();
 
-            Type[] types = assembly.GetTypes();
+            @namespace = @namespace.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System")));
 
-            foreach (var type in types)
-                Console.WriteLine($"Type found: {type.FullName}");
+            var testClassDeclaration = SyntaxFactory.ClassDeclaration("TestClass")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                // public bool Property1 { get; set; }
+                .AddMembers(SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName("bool"), "Property1")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAccessorListAccessors(
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))));
+
+            var testStructDeclaration = SyntaxFactory.StructDeclaration("TestStruct")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                // public int Property1 { get; set; }
+                .AddMembers(SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName("int"), "Property1")
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAccessorListAccessors(
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))));
+
+            @namespace = @namespace.AddMembers(testClassDeclaration, testStructDeclaration);
+
+            return @namespace;
         }
     }
 }
