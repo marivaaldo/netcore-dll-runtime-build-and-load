@@ -12,20 +12,16 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
 {
     public static class Helpers
     {
-        public static bool Build(List<MetadataReference> references, SyntaxNode syntax, string assemblyName, out List<Diagnostic> errors)
+        public static bool Build(List<MetadataReference> references, SyntaxTree syntaxTree, string assemblyName, out List<Diagnostic> errors, SyntaxTree assemblyProperties = null)
         {
-            var code = syntax.NormalizeWhitespace().ToFullString();
+            var syntaxTrees = new List<SyntaxTree>() { syntaxTree };
 
-            return Build(references, code, assemblyName, out errors);
-        }
-
-        public static bool Build(List<MetadataReference> references, string code, string assemblyName, out List<Diagnostic> errors)
-        {
-            var syntaxTree = SyntaxFactory.ParseSyntaxTree(code);
+            if (assemblyProperties != null)
+                syntaxTrees.Add(assemblyProperties);
 
             var compilation = CSharpCompilation.Create(
                 assemblyName: assemblyName,
-                syntaxTrees: new[] { syntaxTree },
+                syntaxTrees: syntaxTrees,
                 references: references,
                 options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
@@ -50,6 +46,14 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
             }
 
             return errors == null;
+        }
+
+        public static bool Build(List<MetadataReference> references, string code, string assemblyName, out List<Diagnostic> errors, string assemblyProperties = null)
+        {
+            var syntaxTree = SyntaxFactory.ParseSyntaxTree(code);
+            var assemblyPropertiesTree = SyntaxFactory.ParseSyntaxTree(assemblyProperties);
+
+            return Build(references, syntaxTree, assemblyName, out errors, assemblyPropertiesTree);
         }
 
         public static Assembly Load(string assemblyName)

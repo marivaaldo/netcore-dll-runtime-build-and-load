@@ -24,7 +24,8 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
             //var build = GetCode();
             var build = GetSyntax();
 
-            if (!Helpers.Build(references, build, assemblyName, out List<Diagnostic> errors))
+            if (!Helpers.Build(references, GetCode(), assemblyName, out List<Diagnostic> errors, GetAssemblyProperties(assemblyName).ToString()))
+            //if (!Helpers.Build(references, GetSyntax(), assemblyName, out List<Diagnostic> errors, GetAssemblyProperties(assemblyName)))
             {
                 Console.WriteLine("Build errors:");
 
@@ -74,7 +75,7 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
             }";
         }
 
-        private static SyntaxNode GetSyntax()
+        private static SyntaxTree GetSyntax()
         {
             var @namespace = SyntaxFactory.NamespaceDeclaration(SyntaxFactory.ParseName("RuntimeAssemblyTest")).NormalizeWhitespace();
 
@@ -100,7 +101,22 @@ namespace NETCore_DLL_Runtime_BuildAndLoad
 
             @namespace = @namespace.AddMembers(testClassDeclaration, testStructDeclaration);
 
-            return @namespace;
+            return @namespace.SyntaxTree;
+        }
+
+        private static SyntaxTree GetAssemblyProperties(string assemblyName)
+        {
+            var properties = $@"
+            using System.Reflection;
+
+            [assembly: AssemblyTitle(""{assemblyName}"")]
+            [assembly: AssemblyVersion(""1.0.0"")]
+            [assembly: AssemblyFileVersion(""1.0.0"")]
+            [assembly: AssemblyProduct(""{assemblyName} Product"")]
+            [assembly: AssemblyInformationalVersion(""1.0.0"")]
+            ";
+
+            return CSharpSyntaxTree.ParseText(properties);
         }
     }
 }
